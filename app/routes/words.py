@@ -58,9 +58,13 @@ def get_word_details(word: str, dest: str | None = 'ru', src: str | None = 'en',
         raise HTTPException(status_code=500, detail="Internal Server Error")
         
 @router.get("/words", response_model=List[WordSchema])
-def get_words(skip: int = 0, limit: int = 10, db: Session = Depends(get_db)):
+def get_words(page: int = 1, limit: int = 10, filter: str = '', db: Session = Depends(get_db)):
+    skip = (page-1)*limit
     try:
-        words = db.query(Word).offset(skip).limit(limit).all()
+        query = db.query(Word)
+        if filter != '':
+            query = query.filter(Word.word_text.like(f"%{filter}%"))
+        words = query.offset(skip).limit(limit).all()
         return [to_word_schema(word) for word in words]
     except Exception as e:
         logger.error(f"Error fetching words. Error: {e}")
