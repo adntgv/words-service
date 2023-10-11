@@ -1,9 +1,9 @@
-from typing import Callable
+from typing import Callable, List
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
-from models.models import Word, Definition, Translation, Synonym
+from database.models import Word, Definition, Translation, Synonym
+from routes.models import WordSchema, DefinitionSchema, TranslationSchema, SynonymSchema
 from database.database import SessionLocal
-from database.cache import cache
 from services.translator import translate_using_wrapper
 import logging
 
@@ -21,25 +21,15 @@ def get_db():
     finally:
         db.close()
 
-
-# FastAPI routes
-@router.get("/word/{word}")
+@router.get("/word/{word}", response_model=WordSchema)
 def get_word_details(word: str, dest: str | None = 'ru', src: str | None = 'en', db: Session = Depends(get_db)):
     try:
-        # Check cache
-        key = f'{word}-{src}-{dest}'
-        cached_word = cache.get(key)
-        if cached_word:
-            logger.info(f"Cache hit for word: {word}")
-            return cached_word
-
         # Check database
         db_word = db.query(Word).filter(Word.word_text == word).first()
         if db_word:
             logger.info(f"Database hit for word: {word}")
-            # Cache and return
-            cache.set(key, db_word)
-            return db_word
+            word_schema = to_word_schema(db_word)
+            return word_schema
 
         # Scrape Google Translate
         definitions_dict, translations_dict = translate_using_wrapper(word, dest, src)
@@ -59,19 +49,19 @@ def get_word_details(word: str, dest: str | None = 'ru', src: str | None = 'en',
         db.commit()
         logger.info(f"Saved word: {word} to database")
 
-        # Cache and return
-        cache.set(key, new_word)
-        return new_word
+        # Convert to Pydantic model, cache, and return
+        word_schema = to_word_schema(new_word)
+        return word_schema
 
     except Exception as e:
         logger.error(f"Error fetching details for word: {word}. Error: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
-
-@router.get("/words")
+        
+@router.get("/words", response_model=List[WordSchema])
 def get_words(skip: int = 0, limit: int = 10, db: Session = Depends(get_db)):
     try:
         words = db.query(Word).offset(skip).limit(limit).all()
-        return words
+        return [to_word_schema(word) for word in words]
     except Exception as e:
         logger.error(f"Error fetching words. Error: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
@@ -84,7 +74,6 @@ def delete_word(word: str, db: Session = Depends(get_db)):
             raise HTTPException(status_code=404, detail="Word not found")
         db.delete(db_word)
         db.commit()
-        cache.delete(word)  # Invalidate cache
         logger.info(f"Deleted word: {word} from database and cache")
         return {"message": "Word deleted successfully"}
     except HTTPException as he:
@@ -92,3 +81,32 @@ def delete_word(word: str, db: Session = Depends(get_db)):
     except Exception as e:
         logger.error(f"Error deleting word: {word}. Error: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
+
+def to_definition_schema(definition: Definition) -> DefinitionSchema:
+    return DefinitionSchema(
+        definition_id=definition.definition_id,
+        definition_text=definition.definition_text,
+        example_text=definition.example_text
+    )
+
+def to_synonym_schema(synonym: Synonym) -> SynonymSchema:
+    return SynonymSchema(
+        synonym_id=synonym.synonym_id,
+        synonym_text=synonym.synonym_text
+    )
+
+def to_translation_schema(translation: Translation) -> TranslationSchema:
+    return TranslationSchema(
+        translation_id=translation.translation_id,
+        translated_text=translation.translated_text,
+        language=translation.language,
+        synonyms=[to_synonym_schema(synonym) for synonym in translation.synonyms]
+    )
+
+def to_word_schema(word: Word) -> WordSchema:
+    return WordSchema(
+        word_id=word.word_id,
+        word_text=word.word_text,
+        definitions=[to_definition_schema(definition) for definition in word.definitions],
+        translations=[to_translation_schema(translation) for translation in word.translations]
+    )
