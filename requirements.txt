@@ -1,0 +1,11 @@
+fastapi
+beautifulsoup4
+sqlalchemy
+requests
+redis
+psycopg2-binary
+uvicorn
+pytest
+requests-mock
+googletrans == 4.0.0-rc1
+alembic
