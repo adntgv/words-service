@@ -1,10 +1,10 @@
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 
 class DefinitionSchema(BaseModel):
     definition_id: int
     definition_text: str
-    example_text: str
+    example_text:  Optional[str] 
 
 class SynonymSchema(BaseModel):
     synonym_id: int

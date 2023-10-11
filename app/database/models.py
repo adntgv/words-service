@@ -18,8 +18,8 @@ class Definition(Base):
 
     definition_id = Column(Integer, primary_key=True)
     word_id = Column(Integer, ForeignKey("words.word_id"))
-    definition_text = Column(Text)
-    example_text = Column(Text)  # Added this column to store example for each definition
+    definition_text = Column(Text, nullable=True)
+    example_text = Column(Text, nullable=True)  # Added this column to store example for each definition
 
     word = relationship("Word", back_populates="definitions")
 
@@ -28,8 +28,8 @@ class Translation(Base):
 
     translation_id = Column(Integer, primary_key=True)
     word_id = Column(Integer, ForeignKey("words.word_id"))
-    translated_text = Column(Text)
-    language = Column(String)
+    translated_text = Column(Text, nullable=True)
+    language = Column(String, nullable=True)
 
     synonyms = relationship("Synonym", back_populates="translation")  # Added this relationship
 
@@ -40,7 +40,7 @@ class Synonym(Base):
 
     synonym_id = Column(Integer, primary_key=True)
     translation_id = Column(Integer, ForeignKey("translations.translation_id"))  # Changed this FK to translations
-    synonym_text = Column(Text)
+    synonym_text = Column(Text, nullable=True)
 
     translation = relationship("Translation", back_populates="synonyms")  # Changed this relationship
 
